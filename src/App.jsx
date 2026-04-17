@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { fetchClassificacao } from "./fetchEspn.js";
 
 // ============================================================
 // DADOS REAIS — REBAIXADOS BRASILEIRÃO SÉRIE A 2014–2024
@@ -81,69 +82,6 @@ const ESPN_MAP = {
   "Atlético-GO": "Atlético-GO", "Atletico Goianiense": "Atlético-GO",
   "Criciúma": "Criciúma", "Criciuma": "Criciúma",
 };
-
-// ── Extrai valor de uma stat pelo name ──────────────────────
-function getStat(stats, ...keys) {
-  if (!Array.isArray(stats)) return null;
-  for (const key of keys) {
-    const found = stats.find(s =>
-      s.name === key || s.abbreviation === key || s.shortDisplayName === key
-    );
-    if (found != null) return found.value ?? parseFloat(found.displayValue) ?? null;
-  }
-  return null;
-}
-
-// ── Busca classificação ESPN — tenta múltiplos caminhos do JSON ──
-async function fetchClassificacao() {
-  const url = "https://site.api.espn.com/apis/site/v2/sports/soccer/BRA.1/standings";
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-
-  // ESPN soccer standings: pode vir em data.standings.entries
-  // ou data.children[0].standings.entries dependendo da temporada
-  let entries = [];
-  if (data?.standings?.entries?.length) {
-    entries = data.standings.entries;
-  } else if (data?.children?.length) {
-    for (const child of data.children) {
-      if (child?.standings?.entries?.length) {
-        entries = child.standings.entries;
-        break;
-      }
-    }
-  }
-
-  if (!entries.length) throw new Error("Estrutura inesperada da API");
-
-  return entries.map((entry, idx) => {
-    const nomeEspn =
-      entry?.team?.displayName ||
-      entry?.team?.shortDisplayName ||
-      entry?.team?.name || "";
-    const nomeInterno = ESPN_MAP[nomeEspn] || nomeEspn;
-    const stats = entry?.stats || [];
-
-    // ESPN usa nomes diferentes dependendo da versão: points/pts/PTS, gamesPlayed/GP
-    const pontos  = getStat(stats, "points",     "pts",         "PTS", "P");
-    const jogos   = getStat(stats, "gamesPlayed","GP",          "GJ",  "gp");
-    const vitorias= getStat(stats, "wins",        "W",          "V");
-    const empates = getStat(stats, "ties",        "D",          "E");
-    const derrotas= getStat(stats, "losses",      "L",          "D");
-
-    return {
-      nome: nomeInterno,
-      nomeEspn,
-      posicao: idx + 1,
-      pontos:  pontos  ?? 0,
-      jogos:   jogos   ?? 0,
-      vitorias: vitorias ?? 0,
-      empates:  empates  ?? 0,
-      derrotas: derrotas ?? 0,
-    };
-  });
-}
 
 // ── Modelo probabilístico ────────────────────────────────────
 function calcularProbabilidade({ historico, pontos, rodada, posicao }) {
